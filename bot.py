@@ -3,7 +3,7 @@ import pandas as pd
 import aiohttp
 import asyncio
 import json
-from datetime import datetime
+from datetime import datetime, time
 import pytz
 import os
 import base64
@@ -75,10 +75,12 @@ processed_updates = set()
 
 def get_time_from_excel(time_str):
     try:
-        if isinstance(time_str, datetime): # pandas может прочитать как datetime.time
-            return time_str.hour, time_str.minute
-        elif isinstance(time_str, datetime.time):
+        # Проверяем сначала на datetime.time, т.к. Excel может его вернуть
+        if isinstance(time_str, time):
              return time_str.hour, time_str.minute
+        # Затем на datetime.datetime (если вдруг дата+время)
+        elif isinstance(time_str, datetime):
+            return time_str.hour, time_str.minute
         elif isinstance(time_str, str):
             # Попробуем разные форматы времени
             for fmt in ('%H:%M:%S', '%H:%M'):
