@@ -233,7 +233,9 @@ async def check_notifications() -> None:
             continue
 
         # Сравниваем время (строгая проверка минуты)
-        if notify_hour == current_hour and notify_minute == current_minute:
+        # if notify_hour == current_hour and notify_minute == current_minute: # Старая строгая проверка
+        # Делаем проверку менее строгой для учета задержек цикла (срабатывает в пределах ~2 минут)
+        if notify_hour == current_hour and abs(notify_minute - current_minute) <= 1:
             birthday_person_name = df_copy.loc[idx, 'Name']
             birthday_person_username = df_copy.loc[idx, 'Tg_Username'] # Username именинника
             buddy_username = df_copy.loc[idx, 'Buddy_Tg_Username']
