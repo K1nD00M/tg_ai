@@ -36,7 +36,7 @@ if not BOT_TOKEN:
 
 
 BASE_URL = f'https://api.telegram.org/bot{BOT_TOKEN}'
-EXCEL_FILENAME = 'employees_data.xlsx' # Имя файла для чтения и сохранения
+EXCEL_FILENAME = 'employees.xlsx' # Имя файла для чтения и сохранения
 
 # Читаем Excel файл напрямую
 try:
