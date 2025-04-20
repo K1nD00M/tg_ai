@@ -378,6 +378,53 @@ async def cleanup_old_connections(retries=3, delay=2) -> None:
 
 async def main() -> None:
     logger.info("Запуск бота...")
+
+    # Логирование расписания уведомлений после загрузки df
+    logger.info("="*70)
+    logger.info("Загруженное расписание уведомлений:")
+    logger.info("-"*70)
+    logger.info(f"{'Имя':<25} | {'День':<5} | {'Месяц':<6} | {'Время (ЧЧ:ММ)':<15}")
+    logger.info("-"*70)
+    schedule_found = False
+    try:
+        # Проверяем, что df существует и не пуст
+        if 'df' in globals() and not df.empty:
+            for idx in df.index:
+                name = df.loc[idx, 'Name']
+                day = df.loc[idx, 'NotificationDay']
+                month = df.loc[idx, 'NotificationMonth']
+                time_str = df.loc[idx, 'NotificationTime']
+
+                # Выводим только строки, где есть день, месяц и время уведомления
+                if pd.notna(day) and pd.notna(month) and pd.notna(time_str):
+                    notify_hour, notify_minute = get_time_from_excel(time_str)
+                    if notify_hour is not None and notify_minute is not None:
+                        time_formatted = f"{notify_hour:02d}:{notify_minute:02d}"
+                    else:
+                        time_formatted = f"Ошибка: {time_str}"
+
+                    try:
+                        # Преобразуем день/месяц в int для чистого вывода
+                        day_formatted = str(int(day))
+                        month_formatted = str(int(month))
+                    except (ValueError, TypeError):
+                        day_formatted = str(day) # Оставляем как есть, если не int
+                        month_formatted = str(month)
+
+                    logger.info(f"{str(name):<25} | {day_formatted:<5} | {month_formatted:<6} | {time_formatted:<15}")
+                    schedule_found = True
+        else:
+            logger.warning("DataFrame 'df' не найден или пуст, расписание не может быть выведено.")
+
+        if not schedule_found:
+            logger.info("В файле не найдено настроенных уведомлений (с указанием дня, месяца и времени).")
+
+    except Exception as e:
+        logger.error(f"Ошибка при выводе расписания уведомлений: {e}")
+    finally:
+        logger.info("="*70)
+
+
     if not await delete_webhook(): # Сначала удаляем вебхук
          logger.warning("Не удалось удалить вебхук. Возможны проблемы с получением апдейтов.")
          # Можно либо прервать выполнение, либо продолжить с риском конфликта
