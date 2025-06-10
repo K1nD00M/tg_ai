@@ -3,7 +3,7 @@ import pandas as pd
 import aiohttp
 import asyncio
 import json
-from datetime import datetime, time, timedelta
+from datetime import datetime, time, timedelta, date
 import pytz
 import os
 import base64
@@ -90,33 +90,30 @@ async def send_message(chat_id: int, text: str, keyboard=None) -> bool:
         return False
 
 async def send_birthday_notification(recipient_id: int, birthday_person_name: str, birthday_person_id: int) -> bool:
-    """Отправляет уведомление о дне рождения с кнопкой подтверждения."""
     key = (recipient_id, birthday_person_id)
     current_time = datetime.now(MOSCOW_TZ)
     
-    # Проверяем, не подтвердил ли уже пользователь
-    if key in notification_tracking and notification_tracking[key]['confirmed']:
+    # Если уже подтвердил — не отправлять
+    if key in notification_tracking and notification_tracking[key].get('confirmed', False):
         return False
-        
-    # Проверяем количество отправленных уведомлений
-    if key in notification_tracking:
-        if notification_tracking[key]['count'] >= MAX_NOTIFICATIONS:
-            return False
-            
-        # Проверяем интервал между уведомлениями
+
+    # Если уже отправлено 3 раза — не отправлять
+    if key in notification_tracking and notification_tracking[key].get('count', 0) >= 3:
+        return False
+
+    # Если прошло меньше 2 часов с последней отправки — не отправлять
+    if key in notification_tracking and 'last_sent' in notification_tracking[key]:
         last_sent = notification_tracking[key]['last_sent']
-        if current_time - last_sent < NOTIFICATION_INTERVAL:
+        if (current_time - last_sent).total_seconds() < 2 * 36:
             return False
-            
-        notification_tracking[key]['count'] += 1
+
+    # Обновляем счетчик и время
+    if key not in notification_tracking:
+        notification_tracking[key] = {'count': 1, 'last_sent': current_time, 'confirmed': False}
     else:
-        notification_tracking[key] = {
-            'count': 1,
-            'confirmed': False
-        }
-    
-    notification_tracking[key]['last_sent'] = current_time
-    
+        notification_tracking[key]['count'] += 1
+        notification_tracking[key]['last_sent'] = current_time
+
     message_text = f"🎂 Напоминание: У {birthday_person_name} сегодня день рождения!"
     keyboard = {
         'inline_keyboard': [[
@@ -126,7 +123,6 @@ async def send_birthday_notification(recipient_id: int, birthday_person_name: st
             }
         ]]
     }
-    
     return await send_message(recipient_id, message_text, keyboard)
 
 async def handle_callback_query(callback_query: dict) -> None:
