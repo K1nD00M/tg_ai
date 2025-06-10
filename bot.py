@@ -3,7 +3,7 @@ import pandas as pd
 import aiohttp
 import asyncio
 import json
-from datetime import datetime, time
+from datetime import datetime, time, timedelta
 import pytz
 import os
 import base64
@@ -37,6 +37,14 @@ if not BOT_TOKEN:
 
 BASE_URL = f'https://api.telegram.org/bot{BOT_TOKEN}'
 EXCEL_FILENAME = 'employees.xlsx' # Имя файла для чтения и сохранения
+
+# Константы для уведомлений
+MAX_NOTIFICATIONS = 3  # Максимальное количество уведомлений
+NOTIFICATION_INTERVAL = timedelta(hours=2)  # Интервал между уведомлениями
+
+# Словарь для хранения информации об уведомлениях
+# Формат: {(recipient_id, birthday_person_id): {'count': int, 'last_sent': datetime, 'confirmed': bool}}
+notification_tracking = {}
 
 # Читаем Excel файл напрямую
 try:
@@ -119,14 +127,22 @@ async def save_excel_async(dataframe, filename):
         logger.error(f"Ошибка при сохранении Excel в потоке: {e}")
 
 
-async def send_message(chat_id: int, text: str) -> bool:
+async def send_message(chat_id: int, text: str, keyboard=None) -> bool:
     # Устанавливаем таймаут для сессии
-    timeout = aiohttp.ClientTimeout(total=10) # 10 секунд общий таймаут
+    timeout = aiohttp.ClientTimeout(total=10)
     try:
+        payload = {
+            'chat_id': int(chat_id),
+            'text': text
+        }
+        
+        if keyboard:
+            payload['reply_markup'] = json.dumps(keyboard)
+            
         async with aiohttp.ClientSession(timeout=timeout) as session:
             async with session.post(
                 f'{BASE_URL}/sendMessage',
-                json={'chat_id': int(chat_id), 'text': text}
+                json=payload
             ) as response:
                 if response.status == 200:
                     logger.debug(f"Сообщение успешно отправлено chat_id={chat_id}")
@@ -145,7 +161,34 @@ async def send_message(chat_id: int, text: str) -> bool:
         return False
 
 
+async def handle_callback_query(callback_query: dict) -> None:
+    """Обрабатывает нажатия на inline кнопки."""
+    try:
+        data = callback_query['data']
+        user_id = callback_query['from']['id']
+        
+        if data.startswith('confirm_'):
+            birthday_person_id = int(data.split('_')[1])
+            key = (user_id, birthday_person_id)
+            
+            if key in notification_tracking:
+                notification_tracking[key]['confirmed'] = True
+                await send_message(user_id, "✅ Спасибо за подтверждение!")
+                
+                # Отвечаем на callback query, чтобы убрать часики с кнопки
+                async with aiohttp.ClientSession() as session:
+                    await session.post(
+                        f'{BASE_URL}/answerCallbackQuery',
+                        json={'callback_query_id': callback_query['id']}
+                    )
+    except Exception as e:
+        logger.error(f"Ошибка при обработке callback query: {e}")
+
 async def handle_update(update: dict) -> None:
+    if 'callback_query' in update:
+        await handle_callback_query(update['callback_query'])
+        return
+        
     if 'message' not in update:
         logger.debug("Апдейт без 'message', пропускаем.")
         return
@@ -204,96 +247,42 @@ async def handle_update(update: dict) -> None:
 
 
 async def check_notifications() -> None:
-    now = datetime.now(MOSCOW_TZ)
-    current_hour, current_minute, current_day, current_month, current_year = now.hour, now.minute, now.day, now.month, now.year
-    logger.debug(f"Проверка уведомлений: {now.strftime('%Y-%m-%d %H:%M:%S')}")
-
-    # Создаем копию df для итерации, чтобы избежать проблем с изменением во время итерации
-    df_copy = df.copy()
-
-    # Находим всех именинников сегодня
-    birthday_people_indices = df_copy[
-        (df_copy['NotificationDay'].astype(int) == current_day) &
-        (df_copy['NotificationMonth'].astype(int) == current_month)
-    ].index
-
-    if not birthday_people_indices.empty:
-        logger.info(f"Найдены потенциальные именинники сегодня: {len(birthday_people_indices)}")
-
-    for idx in birthday_people_indices:
-        # Проверяем время уведомления
-        notify_time_str = df_copy.loc[idx, 'NotificationTime']
-        if pd.isna(notify_time_str):
-            logger.debug(f"Пропуск именинника (индекс {idx}), т.к. NotificationTime не установлено.")
-            continue
-
-        notify_hour, notify_minute = get_time_from_excel(notify_time_str)
-        if notify_hour is None or notify_minute is None:
-            logger.warning(f"Пропуск именинника (индекс {idx}), не удалось распознать время: {notify_time_str}")
-            continue
-
-        # Сравниваем время (строгая проверка минуты)
-        # if notify_hour == current_hour and notify_minute == current_minute: # Старая строгая проверка
-        # Делаем проверку менее строгой для учета задержек цикла (срабатывает в пределах ~2 минут)
-        if notify_hour == current_hour and abs(notify_minute - current_minute) <= 1:
-            birthday_person_name = df_copy.loc[idx, 'Name']
-            birthday_person_username = df_copy.loc[idx, 'Tg_Username'] # Username именинника
-            buddy_username = df_copy.loc[idx, 'Buddy_Tg_Username']
-            buddy_phone = df_copy.loc[idx, 'Buddy_Phone']
-            buddy_bank = df_copy.loc[idx, 'Buddy_Bank']
-
-            logger.info(f"Время совпало для именинника: {birthday_person_name} (индекс {idx}). Отправляем уведомления.")
-
-            # Формируем дату рождения для сообщения
-            birthday_date = df_copy.loc[idx, 'BirthdayDate']
-            if isinstance(birthday_date, datetime):
-                birthday_str = f"{birthday_date.day}.{birthday_date.month}"
-            else:
-                birthday_str = str(birthday_date) # Преобразуем в строку на всякий случай
-
-            # Отправляем уведомления всем активным пользователям (кроме самого именинника)
-            for recipient_idx in df_copy.index:
-                recipient_tg_id = df_copy.loc[recipient_idx, 'Tg_ID']
-                recipient_username = df_copy.loc[recipient_idx, 'Tg_Username']
-
-                # Пропускаем пользователей без Tg_ID или с ID=0
-                if recipient_tg_id == 0 or pd.isna(recipient_tg_id):
-                    continue
-
-                # Пропускаем самого именинника
-                if recipient_username == birthday_person_username:
-                    continue
-
-                # Формируем уникальный ключ уведомления для этого получателя, именинника и дня
-                notification_key = f"{recipient_tg_id}_{birthday_person_username}_{current_year}_{current_month}_{current_day}"
-
-                # Проверяем, не было ли уже отправлено уведомление этому получателю об этом имениннике сегодня
-                if notification_key not in sent_notifications:
-                    amount = df_copy.loc[recipient_idx, 'Amount']
-                    # Проверяем, что amount является числом и не NaN
-                    if pd.isna(amount):
-                        amount_str = "[сумма не указана]"
-                        logger.warning(f"Сумма не указана для получателя {recipient_username} (индекс {recipient_idx})")
-                    else:
-                        amount_str = str(int(amount)) # Преобразуем в int, затем в строку
-
-                    message = (
-                        f"Привет!\n"
-                        f"У {birthday_person_name} ({birthday_person_username}) день рождения {birthday_str}. "
-                        f"Переведи, пожалуйста, сегодня или завтра {amount_str} рублей "
-                        f"{buddy_username} по телефону {buddy_phone} "
-                        f"в {buddy_bank} банк."
-                    )
-
-                    logger.debug(f"Подготовка к отправке уведомления: Кому={recipient_username}({recipient_tg_id}), Именинник={birthday_person_name}, Ключ={notification_key}")
-                    if await send_message(int(recipient_tg_id), message):
-                        sent_notifications[notification_key] = True # Отмечаем как отправленное только при успехе
-                        logger.info(f"Уведомление успешно отправлено: Кому={recipient_username}({recipient_tg_id}), Именинник={birthday_person_name}")
-                    else:
-                         logger.error(f"Не удалось отправить уведомление: Кому={recipient_username}({recipient_tg_id}), Именинник={birthday_person_name}")
-
-                # else: # Убрано логгирование уже отправленных, чтобы не засорять логи
-                #     logger.debug(f"Уведомление уже было отправлено сегодня: Кому={recipient_username}({recipient_tg_id}), Именинник={birthday_person_name}, Ключ={notification_key}")
+    """Проверяет и отправляет уведомления о днях рождения."""
+    while True:
+        try:
+            current_time = datetime.now(MOSCOW_TZ)
+            current_month = current_time.month
+            current_day = current_time.day
+            
+            # Получаем список всех сотрудников
+            all_employees = df[df['Tg_ID'].notna() & (df['Tg_ID'] != 0)]
+            
+            # Находим сотрудников, у которых сегодня день рождения
+            birthday_employees = all_employees[
+                (all_employees['NotificationMonth'] == current_month) &
+                (all_employees['NotificationDay'] == current_day)
+            ]
+            
+            for _, birthday_person in birthday_employees.iterrows():
+                birthday_person_id = int(birthday_person['Tg_ID'])
+                birthday_person_name = birthday_person.get('Name', 'Сотрудник')
+                
+                # Отправляем уведомления всем сотрудникам, кроме именинника
+                for _, recipient in all_employees.iterrows():
+                    recipient_id = int(recipient['Tg_ID'])
+                    if recipient_id != birthday_person_id:
+                        await send_birthday_notification(
+                            recipient_id,
+                            birthday_person_name,
+                            birthday_person_id
+                        )
+            
+            # Ждем 1 минуту перед следующей проверкой
+            await asyncio.sleep(60)
+            
+        except Exception as e:
+            logger.error(f"Ошибка при проверке уведомлений: {e}")
+            await asyncio.sleep(60)  # Ждем минуту при ошибке
 
 
 async def get_updates(offset: int = 0, timeout: int = 30) -> dict:
@@ -502,6 +491,47 @@ async def main() -> None:
         except Exception as e:
             logger.exception(f"Критическая ошибка в основном цикле:") # Используем logger.exception для вывода стектрейса
             await asyncio.sleep(15) # Более длительная пауза при серьезных сбоях
+
+
+async def send_birthday_notification(recipient_id: int, birthday_person_name: str, birthday_person_id: int) -> bool:
+    """Отправляет уведомление о дне рождения с кнопкой подтверждения."""
+    key = (recipient_id, birthday_person_id)
+    current_time = datetime.now(MOSCOW_TZ)
+    
+    # Проверяем, не подтвердил ли уже пользователь
+    if key in notification_tracking and notification_tracking[key]['confirmed']:
+        return False
+        
+    # Проверяем количество отправленных уведомлений
+    if key in notification_tracking:
+        if notification_tracking[key]['count'] >= MAX_NOTIFICATIONS:
+            return False
+            
+        # Проверяем интервал между уведомлениями
+        last_sent = notification_tracking[key]['last_sent']
+        if current_time - last_sent < NOTIFICATION_INTERVAL:
+            return False
+            
+        notification_tracking[key]['count'] += 1
+    else:
+        notification_tracking[key] = {
+            'count': 1,
+            'confirmed': False
+        }
+    
+    notification_tracking[key]['last_sent'] = current_time
+    
+    message_text = f"🎂 Напоминание: У {birthday_person_name} сегодня день рождения!"
+    keyboard = {
+        'inline_keyboard': [[
+            {
+                'text': 'Отправил',
+                'callback_data': f'confirm_{birthday_person_id}'
+            }
+        ]]
+    }
+    
+    return await send_message(recipient_id, message_text, keyboard)
 
 
 if __name__ == '__main__':
