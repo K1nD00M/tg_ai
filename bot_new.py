@@ -104,7 +104,7 @@ async def send_birthday_notification(recipient_id: int, birthday_person_name: st
     # Если прошло меньше 2 часов с последней отправки — не отправлять
     if key in notification_tracking and 'last_sent' in notification_tracking[key]:
         last_sent = notification_tracking[key]['last_sent']
-        if (current_time - last_sent).total_seconds() < 2 * 36:
+        if (current_time - last_sent).total_seconds() < 2 * 3600:
             return False
 
     # Обновляем счетчик и время
@@ -114,7 +114,45 @@ async def send_birthday_notification(recipient_id: int, birthday_person_name: st
         notification_tracking[key]['count'] += 1
         notification_tracking[key]['last_sent'] = current_time
 
-    message_text = f"🎂 Напоминание: У {birthday_person_name} сегодня день рождения!"
+    # Получаем все нужные данные из строки именинника
+    # birthday_person_name уже передан
+    birthday_person = None
+    for _, row in df.iterrows():
+        if int(row.get('Tg_ID', 0)) == birthday_person_id:
+            birthday_person = row
+            break
+    if birthday_person is None:
+        birthday_person_username = ''
+        birthday_day = ''
+        birthday_month = ''
+        amount = ''
+        buddy_username = ''
+        buddy_phone = ''
+        buddy_bank = ''
+    else:
+        birthday_person_username = birthday_person.get('Tg_Username', '')
+        birthday_day = birthday_person.get('NotificationDay', '')
+        birthday_month = birthday_person.get('NotificationMonth', '')
+        amount = birthday_person.get('Amount', '')
+        buddy_username = birthday_person.get('Buddy_Tg_Username', '')
+        buddy_phone = birthday_person.get('Buddy_Phone', '')
+        buddy_bank = birthday_person.get('Buddy_Bank', '')
+
+    try:
+        birthday_day = int(birthday_day)
+    except Exception:
+        birthday_day = birthday_day
+    try:
+        birthday_month = int(birthday_month)
+    except Exception:
+        birthday_month = birthday_month
+
+    message_text = (
+        f"Привет!\n"
+        f"У {birthday_person_name} ({birthday_person_username}) день рождения {birthday_day:02d}.{birthday_month:02d}.\n"
+        f"Переведи, пожалуйста, сегодня или завтра {amount} рублей {buddy_username} по телефону {buddy_phone} в {buddy_bank}."
+    )
+
     keyboard = {
         'inline_keyboard': [[
             {
