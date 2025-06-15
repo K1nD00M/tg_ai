@@ -87,7 +87,6 @@ async def send_birthday_notification(recipient_id: int, birthday_person_name: st
     if key in notification_tracking and notification_tracking[key].get('count', 0) >= MAX_NOTIFICATIONS:
         return False
 
-    # Если прошло меньше 2 часов с последней отправки — не отправлять
     if key in notification_tracking and 'last_sent' in notification_tracking[key]:
         last_sent = notification_tracking[key]['last_sent']
         if (current_time - last_sent).total_seconds() < 2 * 60:
@@ -118,7 +117,8 @@ async def send_birthday_notification(recipient_id: int, birthday_person_name: st
     recipient_row = df[df['Tg_ID'] == recipient_id]
     recipient_time = str(recipient_row.iloc[0].get('NotificationTime', '00:00:00')) if not recipient_row.empty else '00:00:00'
     current_time_str = datetime.now(MOSCOW_TZ).strftime('%H:%M:%S')
-    if current_time_str < recipient_time:
+    # Проверяем время только для самой первой отправки
+    if key not in notification_tracking and current_time_str < recipient_time:
         return False
 
     message_text = (
