@@ -131,24 +131,33 @@ async def handle_callback_query(callback_query: dict) -> None:
     try:
         data = callback_query['data']
         user_id = callback_query['from']['id']
-        
+
+        # Проверка, что это кнопка "Отправил"
         if data.startswith('confirm_'):
             birthday_person_id = int(data.split('_')[1])
             key = (user_id, birthday_person_id)
-            
+
+            # Обновляем состояние уведомлений, если пользователь подтвердил
             if key in notification_tracking:
                 notification_tracking[key]['confirmed'] = True
                 await send_message(user_id, "✅ Спасибо за подтверждение!")
-                
+
                 # Отвечаем на callback query, чтобы убрать часики с кнопки
                 async with aiohttp.ClientSession() as session:
                     await session.post(
                         f'{BASE_URL}/answerCallbackQuery',
                         json={'callback_query_id': callback_query['id']}
                     )
+
+                # Логируем успешное подтверждение
                 logger.info(f"Пользователь {user_id} подтвердил уведомление для {birthday_person_id}.")
+                
+            else:
+                # Если ключ не найден в tracking, то это значит, что уведомление уже было обработано
+                await send_message(user_id, "❌ Это уведомление уже было подтверждено или истек срок для его подтверждения.")
+
     except Exception as e:
-        pass
+        logger.error(f"Ошибка при обработке callback query: {e}")
 
 async def check_notifications() -> None:
     """Проверяет и отправляет уведомления о днях рождения."""
