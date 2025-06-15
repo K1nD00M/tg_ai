@@ -77,13 +77,13 @@ async def send_birthday_notification(recipient_id: int, birthday_person_name: st
         return False
 
     # Если уже отправлено 3 раза — не отправлять
-    if key in notification_tracking and notification_tracking[key].get('count', 0) >= 3:
+    if key in notification_tracking and notification_tracking[key].get('count', 0) >= MAX_NOTIFICATIONS:
         return False
 
     # Если прошло меньше 2 часов с последней отправки — не отправлять
     if key in notification_tracking and 'last_sent' in notification_tracking[key]:
         last_sent = notification_tracking[key]['last_sent']
-        if (current_time - last_sent).total_seconds() < 2 * 3600:
+        if (current_time - last_sent).total_seconds() < 2 * 60:
             return False
 
     # Обновляем счетчик и время
@@ -218,12 +218,12 @@ async def main() -> None:
                     for update in updates['result']:
                         offset = update['update_id'] + 1
                         await handle_update(update)
-                
-                await asyncio.sleep(5)
+                else:
+                    await asyncio.sleep(5)
             except Exception as e:
                 await asyncio.sleep(5)
     except Exception as e:
-        pass
+        raise
     finally:
         notification_task.cancel()
         try:
