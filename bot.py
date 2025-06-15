@@ -179,41 +179,45 @@ async def handle_callback_query(callback_query: dict) -> None:
         logger.error(f"Ошибка при обработке callback query: {e}")
 
 async def check_notifications() -> None:
-    """Проверяет и отправляет уведомления о днях рождения."""
+    """Проверяет и отправляет уведомления о днях рождения по индивидуальной дате и времени именинника."""
     while True:
         try:
             current_time = datetime.now(MOSCOW_TZ)
             current_month = current_time.month
             current_day = current_time.day
-            
+            current_time_str = current_time.strftime('%H:%M:%S')
+
             # Получаем список всех сотрудников
             all_employees = df[df['Tg_ID'].notna() & (df['Tg_ID'] != 0)]
 
-            # Находим сотрудников, у которых сегодня день рождения
-            birthday_employees = all_employees[
-                (all_employees['NotificationMonth'] == current_month) &
-                (all_employees['NotificationDay'] == current_day)
-            ]
-            
-            for _, birthday_person in birthday_employees.iterrows():
+            # Для каждого сотрудника проверяем его дату и время уведомления
+            for _, birthday_person in all_employees.iterrows():
                 birthday_person_id = int(birthday_person['Tg_ID'])
                 birthday_person_name = birthday_person.get('Name', 'Сотрудник')
-                
-                # Отправляем уведомления всем сотрудникам, кроме именинника
-                for _, recipient in all_employees.iterrows():
-                    recipient_id = int(recipient['Tg_ID'])
-                    if recipient_id != birthday_person_id:
-                        success = await send_birthday_notification(
-                            recipient_id,
-                            birthday_person_name,
-                            birthday_person_id
-                        )
-                        if success:
-                            logger.info(f"Уведомление отправлено пользователю {recipient_id} о дне рождения {birthday_person_name}.")
-            
+                notification_day = birthday_person.get('NotificationDay', None)
+                notification_month = birthday_person.get('NotificationMonth', None)
+                notification_time = str(birthday_person.get('NotificationTime', '00:00:00'))
+
+                # Проверяем, совпадает ли дата и время
+                if (
+                    notification_month == current_month and
+                    notification_day == current_day and
+                    current_time_str >= notification_time
+                ):
+                    # Отправляем уведомления всем сотрудникам, кроме именинника
+                    for _, recipient in all_employees.iterrows():
+                        recipient_id = int(recipient['Tg_ID'])
+                        if recipient_id != birthday_person_id:
+                            success = await send_birthday_notification(
+                                recipient_id,
+                                birthday_person_name,
+                                birthday_person_id
+                            )
+                            if success:
+                                logger.info(f"Уведомление отправлено пользователю {recipient_id} о дне рождения {birthday_person_name}.")
+
             # Ждем 1 минуту перед следующей проверкой
             await asyncio.sleep(60)
-            
         except Exception as e:
             await asyncio.sleep(60)
 
