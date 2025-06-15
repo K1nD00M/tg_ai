@@ -113,6 +113,13 @@ async def send_birthday_notification(recipient_id: int, birthday_person_name: st
     buddy_phone = birthday_person.iloc[0].get('Buddy_Phone', '')
     buddy_bank = birthday_person.iloc[0].get('Buddy_Bank', '')
     birthday_person_username = birthday_person.iloc[0].get('Tg_Username', '')
+    birthday_person_time = str(birthday_person.iloc[0].get('NotificationTime', '00:00:00'))
+    # Получаем NotificationTime для получателя
+    recipient_row = df[df['Tg_ID'] == recipient_id]
+    recipient_time = str(recipient_row.iloc[0].get('NotificationTime', '00:00:00')) if not recipient_row.empty else '00:00:00'
+    current_time_str = datetime.now(MOSCOW_TZ).strftime('%H:%M:%S')
+    if current_time_str < recipient_time:
+        return False
 
     message_text = (
         f"Привет!\n"
