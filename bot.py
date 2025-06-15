@@ -58,7 +58,8 @@ async def send_message(chat_id: int, text: str, keyboard=None) -> bool:
     try:
         payload = {
             'chat_id': int(chat_id),
-            'text': text
+            'text': text,
+            'parse_mode': 'Markdown'
         }
         
         if keyboard:
@@ -117,7 +118,7 @@ async def send_birthday_notification(recipient_id: int, birthday_person_name: st
         f"Привет!\n"
         f"У {birthday_person_name} ({birthday_person_username}) день рождения {birthday_day:02d}.{birthday_month:02d}.\n"
         f"Переведи, пожалуйста, сегодня или завтра {amount} рублей {buddy_username} по телефону {buddy_phone} в {buddy_bank} банк.\n\n"
-        f"После перевода нажми кнопку 'Отправил'"
+        f"**После перевода нажми кнопку 'Отправил'**"
     )
 
     keyboard = {
