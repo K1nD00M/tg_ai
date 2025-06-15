@@ -47,6 +47,11 @@ except Exception as e:
 
 MOSCOW_TZ = pytz.timezone('Europe/Moscow')
 
+def escape_markdown(text: str) -> str:
+    """Экранирует спецсимволы для Telegram MarkdownV2."""
+    escape_chars = r'_()*[]~`>#+-=|{}.!'
+    return ''.join(['\\' + c if c in escape_chars else c for c in text])
+
 async def send_message(chat_id: int, text: str, keyboard=None) -> bool:
     """Отправляет сообщение пользователю с опциональной клавиатурой."""
     timeout = aiohttp.ClientTimeout(total=10)
@@ -110,9 +115,9 @@ async def send_birthday_notification(recipient_id: int, birthday_person_name: st
 
     message_text = (
         f"Привет!\n"
-        f"У {birthday_person_name} ({birthday_person_username}) день рождения {birthday_day:02d}.{birthday_month:02d}.\n"
-        f"Переведи, пожалуйста, сегодня или завтра {amount} рублей {buddy_username} по телефону {buddy_phone} в {buddy_bank} банк.\n\n"
-        f"*После перевода нажми кнопку \"Отправил\"*"
+        f"У {escape_markdown(str(birthday_person_name))} ({escape_markdown(str(birthday_person_username))}) день рождения {birthday_day:02d}.{birthday_month:02d}.\n"
+        f"Переведи, пожалуйста, сегодня или завтра {amount} рублей {escape_markdown(str(buddy_username))} по телефону {escape_markdown(str(buddy_phone))} в {escape_markdown(str(buddy_bank))} банк.\n\n"
+        f"*{escape_markdown('После перевода нажми кнопку "Отправил"')}*"
     )
 
     keyboard = {
@@ -156,8 +161,8 @@ async def handle_callback_query(callback_query: dict) -> None:
                 logger.info(f"Пользователь {user_id} подтвердил уведомление для {birthday_person_id}.")
                 
             else:
-                # Если ключ не найден в tracking, то это значит, что уведомление уже было обработано
-                await send_message(user_id, "❌ Это уведомление уже было подтверждено или истек срок для его подтверждения.")
+                # Если ключ не найден в tracking или уже подтверждено, то уведомление уже было обработано
+                await send_message(user_id, "Вы уже подтвердили перевод или истек срок для подтверждения.")
 
     except Exception as e:
         logger.error(f"Ошибка при обработке callback query: {e}")
