@@ -58,8 +58,7 @@ async def send_message(chat_id: int, text: str, keyboard=None) -> bool:
     try:
         payload = {
             'chat_id': int(chat_id),
-            'text': text,
-            'parse_mode': 'MarkdownV2'
+            'text': text
         }
         
         if keyboard:
@@ -72,6 +71,7 @@ async def send_message(chat_id: int, text: str, keyboard=None) -> bool:
                 else:
                     return False
     except Exception as e:
+        logger.error(f"Ошибка при отправке сообщения: {e}")
         return False
 
 async def send_birthday_notification(recipient_id: int, birthday_person_name: str, birthday_person_id: int) -> bool:
@@ -115,9 +115,9 @@ async def send_birthday_notification(recipient_id: int, birthday_person_name: st
 
     message_text = (
         f"Привет!\n"
-        f"У {escape_markdown(str(birthday_person_name))} ({escape_markdown(str(birthday_person_username))}) день рождения {birthday_day:02d}.{birthday_month:02d}.\n"
-        f"Переведи, пожалуйста, сегодня или завтра {amount} рублей {escape_markdown(str(buddy_username))} по телефону {escape_markdown(str(buddy_phone))} в {escape_markdown(str(buddy_bank))} банк.\n\n"
-        f"*{escape_markdown('После перевода нажми кнопку "Отправил"')}*"
+        f"У {birthday_person_name} ({birthday_person_username}) день рождения {birthday_day:02d}.{birthday_month:02d}.\n"
+        f"Переведи, пожалуйста, сегодня или завтра {amount} рублей {buddy_username} по телефону {buddy_phone} в {buddy_bank} банк.\n\n"
+        f"После перевода нажми кнопку 'Отправил'"
     )
 
     keyboard = {
