@@ -213,6 +213,30 @@ async def get_updates(offset: int = 0, timeout: int = 30) -> dict:
     except Exception as e:
         return {'ok': False, 'result': []}
 
+async def handle_update(update: dict) -> None:
+    """Обрабатывает входящие обновления от Telegram API."""
+    try:
+        # Обработка callback-запросов (нажатия на кнопки)
+        if 'callback_query' in update:
+            await handle_callback_query(update['callback_query'])
+            return
+
+        # Обработка текстовых сообщений (если нужно)
+        if 'message' in update and 'text' in update['message']:
+            message = update['message']
+            chat_id = message['chat']['id']
+            text = message['text']
+
+            # Пример обработки команд
+            if text.startswith('/start'):
+                await send_message(chat_id, "Привет! Я бот для поздравлений с днем рождения.")
+            elif text.startswith('/help'):
+                await send_message(chat_id, "Я отправляю уведомления о днях рождения сотрудников.")
+            # Добавьте другие команды или обработку сообщений по необходимости
+
+    except Exception as e:
+        logger.error(f"Ошибка при обработке обновления: {e}")
+
 async def main() -> None:
     """Основная функция бота."""
     try:
