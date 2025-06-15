@@ -53,7 +53,8 @@ async def send_message(chat_id: int, text: str, keyboard=None) -> bool:
     try:
         payload = {
             'chat_id': int(chat_id),
-            'text': text
+            'text': text,
+            'parse_mode': 'Markdown'
         }
         
         if keyboard:
