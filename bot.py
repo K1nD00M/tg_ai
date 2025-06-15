@@ -121,6 +121,9 @@ async def send_birthday_notification(recipient_id: int, birthday_person_name: st
     if key not in notification_tracking and current_time_str < recipient_time:
         return False
 
+    # Получаем Amount для получателя
+    amount = recipient_row.iloc[0].get('Amount', '') if not recipient_row.empty else ''
+
     message_text = (
         f"Привет!\n"
         f"У {birthday_person_name} ({birthday_person_username}) день рождения {birthday_day:02d}.{birthday_month:02d}.\n"
