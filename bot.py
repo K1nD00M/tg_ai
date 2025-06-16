@@ -139,7 +139,7 @@ async def send_birthday_notification(recipient_id: int, birthday_person_name: st
     message_text = (
         f"Привет!\n"
         f"У {birthday_person_name} ({birthday_person_username}) день рождения {birthday_date}.\n"
-        f"Переведи, пожалуйста, сегодня или завтра {amount} рублей {buddy_username} по телефону {buddy_phone} в {buddy_bank} банк.\n\n"
+        f"Переведи, пожалуйста, сегодня {amount} рублей {buddy_username} по телефону {buddy_phone} в {buddy_bank} банк.\n\n"
         f"**После перевода нажми кнопку 'Отправил'**"
     )
 
