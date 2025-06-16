@@ -89,7 +89,7 @@ async def send_birthday_notification(recipient_id: int, birthday_person_name: st
 
     if key in notification_tracking and 'last_sent' in notification_tracking[key]:
         last_sent = notification_tracking[key]['last_sent']
-        if (current_time - last_sent).total_seconds() < 2 * 60:
+        if (current_time - last_sent).total_seconds() < 120 * 60:
             return False
 
     # Обновляем счетчик и время
