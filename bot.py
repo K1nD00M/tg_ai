@@ -105,8 +105,7 @@ async def send_birthday_notification(recipient_id: int, birthday_person_name: st
         return False
 
     birthday_person_name = birthday_person.iloc[0].get('Name', 'Сотрудник')
-    birthday_day = birthday_person.iloc[0].get('NotificationDay', '')
-    birthday_month = birthday_person.iloc[0].get('NotificationMonth', '')
+    birthday_date = birthday_person.iloc[0].get('BirthdayDate', '')
     amount = birthday_person.iloc[0].get('Amount', '')
     buddy_username = birthday_person.iloc[0].get('Buddy_Tg_Username', '')
     buddy_phone = birthday_person.iloc[0].get('Buddy_Phone', '')
@@ -126,7 +125,7 @@ async def send_birthday_notification(recipient_id: int, birthday_person_name: st
 
     message_text = (
         f"Привет!\n"
-        f"У {birthday_person_name} ({birthday_person_username}) день рождения {birthday_day:02d}.{birthday_month:02d}.\n"
+        f"У {birthday_person_name} ({birthday_person_username}) день рождения {birthday_date}.\n"
         f"Переведи, пожалуйста, сегодня или завтра {amount} рублей {buddy_username} по телефону {buddy_phone} в {buddy_bank} банк.\n\n"
         f"**После перевода нажми кнопку 'Отправил'**"
     )
