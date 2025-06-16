@@ -105,8 +105,20 @@ async def send_birthday_notification(recipient_id: int, birthday_person_name: st
         return False
 
     birthday_person_name = birthday_person.iloc[0].get('Name', 'Сотрудник')
-    # Оставляем только дату без времени
-    birthday_date = str(birthday_person.iloc[0].get('BirthdayDate', '')).split()[0]
+    # Оставляем только день и месяц без года
+    birthday_date_raw = str(birthday_person.iloc[0].get('BirthdayDate', '')).split()[0]
+    try:
+        # Попробуем распарсить дату в формате ГГГГ-ММ-ДД или ДД.ММ.ГГГГ
+        if '-' in birthday_date_raw:
+            parts = birthday_date_raw.split('-')
+            birthday_date = f"{parts[2]}.{parts[1]}"
+        elif '.' in birthday_date_raw:
+            parts = birthday_date_raw.split('.')
+            birthday_date = f"{parts[0]}.{parts[1]}"
+        else:
+            birthday_date = birthday_date_raw
+    except Exception:
+        birthday_date = birthday_date_raw
     amount = birthday_person.iloc[0].get('Amount', '')
     buddy_username = birthday_person.iloc[0].get('Buddy_Tg_Username', '')
     buddy_phone = birthday_person.iloc[0].get('Buddy_Phone', '')
