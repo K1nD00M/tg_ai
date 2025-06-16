@@ -105,7 +105,8 @@ async def send_birthday_notification(recipient_id: int, birthday_person_name: st
         return False
 
     birthday_person_name = birthday_person.iloc[0].get('Name', 'Сотрудник')
-    birthday_date = birthday_person.iloc[0].get('BirthdayDate', '')
+    # Оставляем только дату без времени
+    birthday_date = str(birthday_person.iloc[0].get('BirthdayDate', '')).split()[0]
     amount = birthday_person.iloc[0].get('Amount', '')
     buddy_username = birthday_person.iloc[0].get('Buddy_Tg_Username', '')
     buddy_phone = birthday_person.iloc[0].get('Buddy_Phone', '')
